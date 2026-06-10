@@ -1,83 +1,69 @@
 import streamlit as st
+import requests
+from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col
 
 # Page Title
 st.title("🥤 Custom Smoothie Order Form")
 st.title(":cup_with_straw: Customize Your Smoothie! :cup_with_straw:")
-# Customer Name
-name_on_order = st.text_input("Name on Smoothie:")
-
-st.write("The name on your Smoothie will be:", name_on_order)
-if ingredients_list:
-    ingredients_string = ''
-
-    for fruit_chosen in ingredients_list:
-        ingredients_string += fruit_chosen + ' '
-        
-        search_on = fruit_options.loc[fruit_options['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-        st.subheader(fruit_chosen + ' Nutrition Information')
-        smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/" + search_on)
-        sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
 
 # Snowflake Session
 session = get_active_session()
-import requests  
-smoothiefroot_response = requests.get("[https://my.smoothiefroot.com/api/fruit/watermelon](https://my.smoothiefroot.com/api/fruit/watermelon)")  
-st.text(smoothiefroot_response)
 
+# Customer Name
+name_on_order = st.text_input("Name on Smoothie:")
+st.write("The name on your Smoothie will be:", name_on_order)
 
-# Get Fruit List
+# Get Fruit List from Snowflake
 my_dataframe = session.table("smoothies.public.fruit_options").select(col("FRUIT_NAME"))
-editable_df = st.data_editor(my_dataframe)
 
-submitted = st.button('Submit')
+fruit_list = [row["FRUIT_NAME"] for row in my_dataframe.collect()]
 
-if submitted:
-    st.success("Someone clicked the button.", icon="👍")
+# Multi-select Widget
+ingredients_list = st.multiselect(
+    "Choose up to 5 ingredients:",
+    fruit_list
+)
 
+# Display Selected Ingredients
+if ingredients_list:
+    ingredients_string = ""
 
+    for fruit_chosen in ingredients_list:
+        ingredients_string += fruit_chosen + " "
 
-# Display Fruits
-# st.dataframe(data=my_dataframe, use_container_width=True)
+    st.write("Ingredients Selected:")
+    st.write(ingredients_string)
 
-# # Multi-select Widget
-# ingredients_list = st.multiselect(
-#     "Choose up to 5 ingredients:",
-#     my_dataframe.collect()
-# )
+# Submit Button
+time_to_insert = st.button("Submit Order")
 
-# # Submit Button
-# time_to_insert = st.button("Submit Order")
+# Insert Order into Snowflake
+if time_to_insert:
 
-# # Process Order
-# if time_to_insert:
+    ingredients_string = ""
 
-#     ingredients_string = ""
+    for fruit_chosen in ingredients_list:
+        ingredients_string += fruit_chosen + " "
 
-#     for fruit_chosen in ingredients_list:
-#         ingredients_string += str(fruit_chosen[0]) + " "
+    my_insert_stmt = f"""
+    INSERT INTO smoothies.public.orders
+    (ingredients, name_on_order)
+    VALUES
+    ('{ingredients_string}', '{name_on_order}')
+    """
 
-#     st.write("Ingredients Selected:")
-#     st.write(ingredients_string)
+    session.sql(my_insert_stmt).collect()
 
-#     my_insert_stmt = f"""
-#     INSERT INTO smoothies.public.orders
-#     (ingredients, name_on_order)
-#     VALUES
-#     ('{ingredients_string}', '{name_on_order}')
-#     """
+    st.success("Your Smoothie is ordered! ✅")
 
-#     session.sql(my_insert_stmt).collect()
+# Show Pending Orders
+st.subheader("🥤 Pending Smoothie Orders")
 
-#     st.success("Your Smoothie is ordered! ✅")
+pending_orders = (
+    session.table("smoothies.public.orders")
+    .filter(col("ORDER_FILLED") == False)
+    .collect()
+)
 
-# # Show Pending Orders
-# st.subheader("🥤 Pending Smoothie Orders")
-
-# pending_orders = (
-#     session.table("smoothies.public.orders")
-#     .filter(col("ORDER_FILLED") == False)
-#     .collect()
-# )
-
-# st.dataframe(pending_orders, use_container_width=True)
+st.dataframe(pending_orders, use_container_width=True)
