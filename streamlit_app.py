@@ -11,6 +11,9 @@ st.write("The name on your Smoothie will be:", name_on_order)
 
 # Snowflake Session
 session = get_active_session()
+import requests  
+smoothiefroot_response = requests.get("[https://my.smoothiefroot.com/api/fruit/watermelon](https://my.smoothiefroot.com/api/fruit/watermelon)")  
+st.text(smoothiefroot_response)
 
 
 # Get Fruit List
